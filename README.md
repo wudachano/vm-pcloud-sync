@@ -9,6 +9,7 @@ Single-file Python wrapper with **built-in exclude rules** and CLI options for e
 
 ## Features
 - `copy` / `sync` (one-way) and `bisync` (two-way)
+- **Reverse / pull mode**: `--reverse` (alias `--pull`) to sync **pCloud → VM**
 - Built-in excludes: `.git/`, `.venv/`, `__pycache__/`, `*.pyc` …  
   (disable via `--no-default-excludes`; extend with `--exclude/--include`)
 - `--resync` for the **first** bisync run (baseline)
@@ -22,7 +23,8 @@ Single-file Python wrapper with **built-in exclude rules** and CLI options for e
   ```bash
   sudo apt-get update && sudo apt-get install -y rclone
   rclone version
-  ```
+```
+
 * A configured pCloud remote (assumed name: `pcloud:`)
 
   ```bash
@@ -37,29 +39,23 @@ Single-file Python wrapper with **built-in exclude rules** and CLI options for e
 ```bash
 python3 vm_pcloud_sync.py
 # == --src ~/TradingHub --dest pcloud:TradingHub --mode sync
+# Direction: local -> remote
 ```
 
-### 1) Reverse (pull from pCloud)
-
-```bash
-python3 vm_pcloud_sync.py --reverse
-# == rclone sync pcloud:TradingHub ~/TradingHub
-```
-
-### 2) One-way backup (copy)
+### 1) One-way backup (copy)
 
 ```bash
 python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode copy
 ```
 
-### 3) One-way mirror (sync)
+### 2) One-way mirror (sync)
 
 ```bash
 python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode sync -n   # dry-run
 python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode sync
 ```
 
-### 4) Two-way sync (bisync)
+### 3) Two-way sync (bisync)
 
 **First run (baseline):**
 
@@ -73,7 +69,23 @@ python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode bis
 python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode bisync
 ```
 
-**Add your own rules:**
+### 4) **Reverse / pull from pCloud → VM**
+
+Mirror remote to local (dangerous: deletes local extras):
+
+```bash
+python3 vm_pcloud_sync.py --reverse      # == rclone sync pcloud:TradingHub ~/TradingHub
+```
+
+Safe copy (no deletions):
+
+```bash
+python3 vm_pcloud_sync.py --reverse --mode copy
+```
+
+> In `bisync`, `--reverse` just flips path order (relevant only if you use `--conflict-resolve path1|path2`).
+
+### 5) Add your own rules
 
 ```bash
 python3 vm_pcloud_sync.py --mode bisync \
@@ -81,14 +93,20 @@ python3 vm_pcloud_sync.py --mode bisync \
   --exclude "/**/logs/**" --include "/**/*.csv"
 ```
 
+### 6) Snapshot (copy/sync only)
+
+```bash
+python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub/snapshots --snapshot
+```
+
 ## CLI summary
 
-* `--src ...` (multi) | `--dest ...` (remote:path) | `--mode copy|sync|bisync`
+* `--src ...` (multi) | `--dest ...` (remote\:path) | `--mode copy|sync|bisync`
+* `--reverse` / `--pull` (flip direction: **remote → local**)
 * `--dry-run` | `--fast` | `-v/-vv/-vvv`
 * `--no-default-excludes` | `--exclude PATTERN` | `--include PATTERN`
 * `--snapshot` (copy/sync only) | `--name SUBDIR`
 * `--resync` (bisync only) | `--conflict-resolve newer|older|path1|path2|larger|smaller`
-* `--reverse`/`--pull` (flip direction: remote → local)
 
 ## Systemd (optional)
 
