@@ -1,0 +1,9 @@
+[Unit]
+Description=VM <-> pCloud sync (bisync)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/<USER>/vm_pcloud_sync.py \
+  --mode bisync --src /home/<USER>/TradingHub --dest pcloud:TradingHub
