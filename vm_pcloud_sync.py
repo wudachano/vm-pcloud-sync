@@ -3,7 +3,7 @@
 """
 vm_pcloud_sync.py
 Default run (no args):
-  src=~/TradingHub  dest=pcloud:TradingHub  mode=sync  (direction: local -> remote)
+  src=~/TradingHub  dest=pcloud:TradingHub  mode=copy  (direction: local -> remote)
 
 Options:
   --src ... (multi)      --dest ...        --mode copy|sync|bisync
@@ -69,8 +69,8 @@ def main():
                     help="Source directory(ies). Default: ~/TradingHub")
     ap.add_argument("--dest", default="pcloud:TradingHub",
                     help="Destination (remote:path). Default: pcloud:TradingHub")
-    ap.add_argument("--mode", choices=["copy", "sync", "bisync"], default="sync",
-                    help="Default: sync")
+    ap.add_argument("--mode", choices=["copy", "sync", "bisync"], default="copy",
+                    help="Default: copy")
     ap.add_argument("--reverse", "--pull", dest="reverse", action="store_true",
                     help="Flip direction: remote -> local (pcloud -> VM).")
     ap.add_argument("--name", default=None,
