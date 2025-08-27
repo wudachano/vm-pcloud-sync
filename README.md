@@ -39,20 +39,27 @@ python3 vm_pcloud_sync.py
 # == --src ~/TradingHub --dest pcloud:TradingHub --mode sync
 ```
 
-### 1) One-way backup (copy)
+### 1) Reverse (pull from pCloud)
+
+```bash
+python3 vm_pcloud_sync.py --reverse
+# == rclone sync pcloud:TradingHub ~/TradingHub
+```
+
+### 2) One-way backup (copy)
 
 ```bash
 python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode copy
 ```
 
-### 2) One-way mirror (sync)
+### 3) One-way mirror (sync)
 
 ```bash
 python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode sync -n   # dry-run
 python3 vm_pcloud_sync.py --src ~/TradingHub --dest pcloud:TradingHub --mode sync
 ```
 
-### 3) Two-way sync (bisync)
+### 4) Two-way sync (bisync)
 
 **First run (baseline):**
 
@@ -81,6 +88,7 @@ python3 vm_pcloud_sync.py --mode bisync \
 * `--no-default-excludes` | `--exclude PATTERN` | `--include PATTERN`
 * `--snapshot` (copy/sync only) | `--name SUBDIR`
 * `--resync` (bisync only) | `--conflict-resolve newer|older|path1|path2|larger|smaller`
+* `--reverse`/`--pull` (flip direction: remote → local)
 
 ## Systemd (optional)
 

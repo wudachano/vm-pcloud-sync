@@ -3,7 +3,7 @@
 """
 vm_pcloud_sync.py
 Default run (no args):
-  src=~/TradingHub  dest=pcloud:TradingHub  mode=sync
+  src=~/TradingHub  dest=pcloud:TradingHub  mode=sync  (direction: local -> remote)
 
 Options:
   --src ... (multi)      --dest ...        --mode copy|sync|bisync
@@ -11,6 +11,7 @@ Options:
   --no-default-excludes  --exclude PATTERN (repeatable)
   --include PATTERN      --snapshot        --name SUBDIR
   --resync (bisync only) --conflict-resolve newer|older|path1|path2|larger|smaller
+  --reverse / --pull     (flip direction: remote -> local)
 """
 
 import argparse
@@ -70,6 +71,8 @@ def main():
                     help="Destination (remote:path). Default: pcloud:TradingHub")
     ap.add_argument("--mode", choices=["copy", "sync", "bisync"], default="sync",
                     help="Default: sync")
+    ap.add_argument("--reverse", "--pull", dest="reverse", action="store_true",
+                    help="Flip direction: remote -> local (pcloud -> VM).")
     ap.add_argument("--name", default=None,
                     help="Put under this subfolder on destination (optional).")
     ap.add_argument("--snapshot", action="store_true",
@@ -107,42 +110,72 @@ def main():
     if args.fast:
         common += ["--fast-list"]
 
-    # decide if we should nest under subfolder on dest:
-    # - if --name provided → always nest under that
-    # - elif multiple sources → nest by each source's basename
-    # - else (single src, no --name) → direct to dest root (matches: rclone * ~/TradingHub pcloud:TradingHub)
     multi_src = len(args.src) > 1
 
     for s in args.src:
-        src = Path(os.path.expanduser(s)).resolve()
-        if not src.is_dir():
-            print(f"❌ Source not found or not a directory: {src}", file=sys.stderr)
-            continue
+        src_local = Path(os.path.expanduser(s)).resolve()
 
-        # build destination path
+        # In normal (non-reverse) direction, we require local src to exist.
+        # In reverse mode (remote -> local), we will create local dest if missing.
+        if not args.reverse:
+            if not src_local.is_dir():
+                print(f"❌ Source not found or not a directory: {src_local}", file=sys.stderr)
+                continue
+        else:
+            # local target dir (dest in reverse) should exist; create if needed
+            try:
+                src_local.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                print(f"❌ Cannot create local target directory: {src_local} ({e})", file=sys.stderr)
+                continue
+
         dest_root = args.dest.rstrip("/")
+
+        # decide a base name for nesting when needed
         if args.name:
             base = args.name
-            dest_path = f"{dest_root}/{base}"
         elif multi_src:
-            base = src.name
-            dest_path = f"{dest_root}/{base}"
+            base = src_local.name
         else:
-            # single source, no name → write directly to dest root
-            dest_path = dest_root
+            base = None  # single source, no forced nesting
 
-        # snapshot only applies to copy/sync (not bisync)
-        if args.mode in ("copy", "sync") and args.snapshot:
-            snap = f"{Path(dest_path).as_posix().rstrip('/')}-{ts}"
-            dest_path = snap
+        # Build forward (local->remote) and reverse (remote->local) paths
+        if not args.reverse:
+            # Forward: local src -> remote dest
+            forward_src = str(src_local)
+            if base:
+                forward_dest = f"{dest_root}/{base}"
+            else:
+                forward_dest = dest_root
+            # snapshot applies only to copy/sync
+            if args.mode in ("copy", "sync") and args.snapshot:
+                forward_dest = f"{Path(forward_dest).as_posix().rstrip('/')}-{ts}"
+            real_src, real_dest = forward_src, forward_dest
+            direction = "local -> remote"
+        else:
+            # Reverse: remote src -> local dest
+            if base:
+                reverse_src_remote = f"{dest_root}/{base}"
+            else:
+                reverse_src_remote = dest_root
+            reverse_dest_local = str(src_local)
+            if args.mode in ("copy", "sync") and args.snapshot:
+                reverse_dest_local = f"{Path(reverse_dest_local).as_posix().rstrip('/')}-{ts}"
+                # ensure snapshot dir exists
+                Path(reverse_dest_local).mkdir(parents=True, exist_ok=True)
+            real_src, real_dest = reverse_src_remote, reverse_dest_local
+            direction = "remote -> local"
 
         # filters
         fx = build_filter_args(not args.no_default_excludes, args.exclude, args.include)
 
+        # assemble command
         if args.mode in ("copy", "sync"):
-            cmd = [rclone, args.mode, str(src), dest_path] + common + fx + ["--create-empty-src-dirs"]
+            cmd = [rclone, args.mode, real_src, real_dest] + common + fx + ["--create-empty-src-dirs"]
         else:
-            cmd = [rclone, "bisync", str(src), dest_path] + common + fx + [
+            # bisync: order matters if using conflict policy path1/path2; reverse flips the order
+            path1, path2 = (real_src, real_dest) if not args.reverse else (real_dest, real_src)
+            cmd = [rclone, "bisync", path1, path2] + common + fx + [
                 "--check-access",
                 "--compare", "size,modtime",
                 "--create-empty-src-dirs",
@@ -153,12 +186,13 @@ def main():
             if args.resync:
                 cmd.insert(2, "--resync")
 
-        print(f"\n=== {args.mode.upper()} ===\nSource : {src}\nDest   : {dest_path}\n")
+        print(f"\n=== {args.mode.upper()} ({direction}) ===\nSource : {real_src}\nDest   : {real_dest}\n")
         rc = run(cmd)
         if rc == 0:
-            print(f"✅ Done: {src} → {dest_path}\n")
+            print(f"✅ Done: {real_src} → {real_dest}\n")
         else:
-            print(f"❌ Failed (rc={rc}): {src} → {dest_path}\n", file=sys.stderr)
+            print(f"❌ Failed (rc={rc}): {real_src} → {real_dest}\n", file=sys.stderr)
 
 if __name__ == "__main__":
     main()
+
